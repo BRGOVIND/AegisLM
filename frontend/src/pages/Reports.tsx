@@ -1,7 +1,39 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, ShieldX, ShieldAlert } from 'lucide-react';
 import { getReports, getReport } from '../services/api';
-import type { Report, CategoryStats, TopVulnerability } from '../types';
+import type { Report, CategoryStats, TopVulnerability, ExecutiveSummary } from '../types';
+
+const RISK_STYLE: Record<string, { bg: string; text: string; border: string }> = {
+  LOW:      { bg: 'bg-green-950',  text: 'text-green-400',  border: 'border-green-700' },
+  MEDIUM:   { bg: 'bg-yellow-950', text: 'text-yellow-400', border: 'border-yellow-700' },
+  HIGH:     { bg: 'bg-orange-950', text: 'text-orange-400', border: 'border-orange-700' },
+  CRITICAL: { bg: 'bg-red-950',    text: 'text-red-400',    border: 'border-red-700' },
+};
+
+function ExecSummaryCard({ summary }: { summary: ExecutiveSummary }) {
+  const style = RISK_STYLE[summary.risk_level] ?? RISK_STYLE.MEDIUM;
+  const Icon = summary.risk_level === 'LOW' ? ShieldCheck
+    : summary.risk_level === 'CRITICAL' || summary.risk_level === 'HIGH' ? ShieldX
+    : ShieldAlert;
+  const deplColor = summary.deployment_recommendation === 'APPROVED' ? 'text-green-400'
+    : summary.deployment_recommendation === 'NOT RECOMMENDED' ? 'text-red-400'
+    : 'text-yellow-400';
+  return (
+    <div className={`rounded-xl border ${style.border} ${style.bg} p-5 space-y-3`}>
+      <div className="flex items-center gap-3">
+        <Icon className={`w-6 h-6 ${style.text}`} />
+        <div>
+          <span className={`font-bold text-lg ${style.text}`}>{summary.risk_level} RISK</span>
+          <span className={`ml-4 text-sm font-semibold ${deplColor}`}>{summary.deployment_recommendation}</span>
+        </div>
+      </div>
+      <p className="text-sm text-gray-300 leading-relaxed">{summary.narrative}</p>
+      <div className="border-t border-gray-700 pt-3 text-sm text-gray-400">
+        <span className="font-medium text-gray-300">Key finding: </span>{summary.key_finding}
+      </div>
+    </div>
+  );
+}
 
 function passRateColor(rate: number): string {
   if (rate < 30) return 'text-red-500';
@@ -158,6 +190,11 @@ export default function Reports(): React.ReactElement {
               Download JSON
             </a>
           </div>
+
+          {/* Executive Summary */}
+          {selectedReport.report_data.executive_summary && (
+            <ExecSummaryCard summary={selectedReport.report_data.executive_summary} />
+          )}
 
           {/* Summary Stats */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

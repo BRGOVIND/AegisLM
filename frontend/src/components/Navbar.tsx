@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Shield, Cpu, Zap, Play, Brain, FileText, BarChart2 } from 'lucide-react';
+import { Shield, Cpu, Zap, Play, Brain, FileText, BarChart2, TrendingUp, Shuffle, Bot, Trophy, Clock, Database } from 'lucide-react';
 import ThreatPulse from './ThreatPulse';
 
 interface NavItem {
@@ -15,8 +15,14 @@ const navItems: NavItem[] = [
   { to: '/attacks', icon: <Zap size={18} />, label: 'Attacks' },
   { to: '/run', icon: <Play size={18} />, label: 'Run Tests' },
   { to: '/hallucination', icon: <Brain size={18} />, label: 'Hallucination' },
-  { to: '/reports', icon: <FileText size={18} />, label: 'Reports' },
   { to: '/compare', icon: <BarChart2 size={18} />, label: 'Compare Models' },
+  { to: '/analytics', icon: <TrendingUp size={18} />, label: 'Analytics' },
+  { to: '/mutations', icon: <Shuffle size={18} />, label: 'Mutations' },
+  { to: '/agent', icon: <Bot size={18} />, label: 'Red Team Agent' },
+  { to: '/leaderboard', icon: <Trophy size={18} />, label: 'Leaderboard' },
+  { to: '/history', icon: <Clock size={18} />, label: 'History' },
+  { to: '/dataset', icon: <Database size={18} />, label: 'Dataset' },
+  { to: '/reports', icon: <FileText size={18} />, label: 'Reports' },
 ];
 
 const Navbar: React.FC = () => {
@@ -35,7 +41,7 @@ const Navbar: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
-          padding: '24px 20px 20px 20px',
+          padding: '24px 20px 16px 20px',
           borderBottom: '1px solid #374151',
         }}
       >
@@ -51,21 +57,25 @@ const Navbar: React.FC = () => {
         >
           RF
         </span>
-        <span
-          style={{
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-            fontWeight: 600,
-            fontSize: '16px',
-            color: '#FFFFFF',
-            letterSpacing: '0.01em',
-          }}
-        >
-          RedForge
-        </span>
+        <div>
+          <span
+            style={{
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+              fontWeight: 600,
+              fontSize: '16px',
+              color: '#FFFFFF',
+              letterSpacing: '0.01em',
+              display: 'block',
+            }}
+          >
+            RedForge
+          </span>
+          <span style={{ fontSize: '10px', color: '#6B7280', fontFamily: 'monospace' }}>v2.0.0</span>
+        </div>
       </div>
 
       {/* ThreatPulse */}
-      <div style={{ padding: '16px 12px 8px 12px' }}>
+      <div style={{ padding: '12px 12px 6px 12px' }}>
         <ThreatPulse />
       </div>
 
@@ -73,12 +83,13 @@ const Navbar: React.FC = () => {
       <ul
         style={{
           listStyle: 'none',
-          margin: '8px 0 0 0',
+          margin: '4px 0 0 0',
           padding: '0 8px',
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          gap: '2px',
+          gap: '1px',
+          overflowY: 'auto',
         }}
       >
         {navItems.map(({ to, icon, label }) => (
@@ -90,11 +101,11 @@ const Navbar: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px',
-                padding: '9px 12px',
+                padding: '8px 12px',
                 borderRadius: '6px',
                 textDecoration: 'none',
                 fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: isActive ? 500 : 400,
                 color: isActive ? '#EF4444' : '#9CA3AF',
                 background: isActive ? 'rgba(239, 68, 68, 0.10)' : 'transparent',
@@ -122,22 +133,10 @@ const Navbar: React.FC = () => {
         ))}
       </ul>
 
-      {/* Version Badge */}
-      <div
-        style={{
-          padding: '16px 20px',
-          borderTop: '1px solid #374151',
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-            fontSize: '12px',
-            color: '#6B7280',
-            letterSpacing: '0.02em',
-          }}
-        >
-          v1.0.0
+      {/* Footer */}
+      <div style={{ padding: '12px 20px', borderTop: '1px solid #374151' }}>
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '11px', color: '#4B5563' }}>
+          AI Security Evaluation Platform
         </span>
       </div>
     </nav>

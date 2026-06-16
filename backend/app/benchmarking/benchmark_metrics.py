@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -38,7 +38,7 @@ async def compute_and_persist_scores(
     run = result.scalar_one_or_none()
     if run:
         run.status = "completed"
-        run.completed_at = datetime.utcnow()
+        run.completed_at = datetime.now(timezone.utc)
 
     await db.commit()
     return saved

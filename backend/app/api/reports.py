@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -52,7 +52,7 @@ async def create_report(
     report = Report(
         model_name=request.model_name,
         report_data=report_data,
-        generated_at=datetime.utcnow(),
+        generated_at=datetime.now(timezone.utc),
     )
     db.add(report)
     await db.commit()

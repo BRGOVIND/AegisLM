@@ -1,8 +1,11 @@
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
 
 from app.evaluators.hallucination import score_hallucination
+from app.evaluators.judge import judge_response
 
 router = APIRouter(prefix="/api/evaluate", tags=["evaluate"])
 
@@ -58,4 +61,36 @@ async def evaluate_hallucination(request: HallucinationRequest) -> Hallucination
         faithfulness_score=result.faithfulness_score,
         explanation=result.explanation,
         model_response=model_response,
+    )
+
+
+class JudgeRequest(BaseModel):
+    attack_prompt: str
+    model_response: str
+    judge_model: Optional[str] = "llama3.2"
+
+
+class JudgeResponse(BaseModel):
+    verdict: str
+    confidence: float
+    reason: str
+    risk_level: str
+    judge_model: str
+    used_fallback: bool
+
+
+@router.post("/judge", response_model=JudgeResponse)
+async def evaluate_with_judge(request: JudgeRequest) -> JudgeResponse:
+    result = await judge_response(
+        request.attack_prompt,
+        request.model_response,
+        judge_model=request.judge_model or "llama3.2",
+    )
+    return JudgeResponse(
+        verdict=result.verdict,
+        confidence=result.confidence,
+        reason=result.reason,
+        risk_level=result.risk_level,
+        judge_model=result.judge_model,
+        used_fallback=result.used_fallback,
     )

@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -114,7 +114,7 @@ async def _run_batch(job_id: str, model_name: str, attacks: list[Attack]) -> Non
                 verdict=result.verdict,
                 reason=result.reason,
                 latency_ms=latency_ms,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
             )
             db.add(test_run)
             await db.commit()
@@ -167,7 +167,7 @@ async def run_single_attack(
         verdict=scored.verdict,
         reason=scored.reason,
         latency_ms=latency_ms,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     )
     db.add(test_run)
     await db.commit()

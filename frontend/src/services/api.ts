@@ -37,6 +37,8 @@ client.interceptors.response.use(
   }
 );
 
+export { client as apiClient };
+
 // Models
 export async function getModels(): Promise<{ models: OllamaModel[]; error?: string }> {
   const res = await client.get<{ models: OllamaModel[]; error?: string }>('/models');

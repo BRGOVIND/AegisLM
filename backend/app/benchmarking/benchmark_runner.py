@@ -61,6 +61,7 @@ async def run_attacks_for_model(
 
         run_results.append({
             "category": attack.category,
+            "severity": attack.severity,
             "verdict": score_result.verdict,
             "latency_ms": latency_ms,
             "score": score_result.score,

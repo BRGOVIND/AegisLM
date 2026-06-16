@@ -108,6 +108,22 @@ export interface TopVulnerability {
   count: number;
 }
 
+export interface ExecutiveSummary {
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  narrative: string;
+  key_finding: string;
+  deployment_recommendation: 'APPROVED' | 'CONDITIONAL' | 'NOT RECOMMENDED';
+}
+
+export interface ReportFinding {
+  category: string;
+  fail_rate: number;
+  total: number;
+  fail_count: number;
+  risk_level: string;
+  recommendation: string;
+}
+
 export interface ReportData {
   model_name: string;
   generated_at: string;
@@ -121,6 +137,8 @@ export interface ReportData {
   category_breakdown: Record<string, CategoryStats>;
   top_vulnerabilities: TopVulnerability[];
   recommendations: string[];
+  executive_summary?: ExecutiveSummary;
+  findings?: ReportFinding[];
 }
 
 export interface Report {

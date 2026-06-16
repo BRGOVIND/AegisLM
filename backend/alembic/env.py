@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 
 from app.db.database import Base
-from app.db.models import ModelRecord, Attack, TestRun, Report, BenchmarkRun, ModelScore  # noqa: F401
+from app.db.models import ModelRecord, Attack, TestRun, Report, BenchmarkRun, ModelScore, AgentRun, AgentFinding, DatasetEntry  # noqa: F401
 
 config = context.config
 
