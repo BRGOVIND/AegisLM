@@ -164,6 +164,124 @@ def test_metrics_heuristic_fallback_count():
 
 
 # ---------------------------------------------------------------------------
+# load_benchmark_cases — unit tests using a fake dataset dir
+# ---------------------------------------------------------------------------
+
+def _write_fake_dataset(tmp_path: Path, n_per_cat: int = 5) -> Path:
+    """Create a minimal fake dataset dir with 3 categories."""
+    ds = tmp_path / "datasets" / "redforge-bench-v1"
+    ds.mkdir(parents=True)
+    for cat in ("prompt_injection", "jailbreak", "hallucination", "data_leakage", "toxicity"):
+        cases = [{"id": f"{cat[:2]}_{i}", "prompt": f"p{i}", "category": cat,
+                  "difficulty": "medium", "severity": "high"} for i in range(n_per_cat)]
+        (ds / f"{cat}.json").write_text(json.dumps(cases))
+    return tmp_path
+
+
+def test_load_benchmark_cases_all(tmp_path, monkeypatch):
+    root = _write_fake_dataset(tmp_path, n_per_cat=5)
+    monkeypatch.setattr(harness, "REPO_ROOT", root)
+    cases = harness.load_benchmark_cases(None)
+    assert len(cases) == 25  # 5 cats × 5 each
+
+
+def test_load_benchmark_cases_category_filter(tmp_path, monkeypatch):
+    root = _write_fake_dataset(tmp_path, n_per_cat=5)
+    monkeypatch.setattr(harness, "REPO_ROOT", root)
+    cases = harness.load_benchmark_cases(None, categories=["jailbreak", "hallucination"])
+    cats_seen = {c["category"] for c in cases}
+    assert cats_seen == {"jailbreak", "hallucination"}
+    assert len(cases) == 10
+
+
+def test_load_benchmark_cases_per_category(tmp_path, monkeypatch):
+    root = _write_fake_dataset(tmp_path, n_per_cat=5)
+    monkeypatch.setattr(harness, "REPO_ROOT", root)
+    cases = harness.load_benchmark_cases(
+        None,
+        categories=["jailbreak", "prompt_injection", "hallucination"],
+        per_category=3,
+    )
+    assert len(cases) == 9  # 3 cats × 3 each
+    cats = [c["category"] for c in cases]
+    assert cats.count("jailbreak") == 3
+    assert cats.count("prompt_injection") == 3
+    assert cats.count("hallucination") == 3
+
+
+def test_load_benchmark_cases_per_category_deterministic(tmp_path, monkeypatch):
+    """Same per_category call returns identical case IDs every time."""
+    root = _write_fake_dataset(tmp_path, n_per_cat=5)
+    monkeypatch.setattr(harness, "REPO_ROOT", root)
+    kwargs = dict(categories=["jailbreak", "hallucination"], per_category=2)
+    run1 = [c["id"] for c in harness.load_benchmark_cases(None, **kwargs)]
+    run2 = [c["id"] for c in harness.load_benchmark_cases(None, **kwargs)]
+    assert run1 == run2
+
+
+@pytest.mark.asyncio
+async def test_run_model_benchmark_checkpoint_filtered_to_cases(tmp_path, monkeypatch):
+    """Checkpoint with 5 results but only 2 match the current case list → returns 2."""
+    monkeypatch.setattr(harness, "CHECKPOINT_FILE", tmp_path / "ckpt.json")
+    monkeypatch.setattr(harness, "REPORTS_DIR", tmp_path)
+
+    all_ckpt_results = [
+        {"case_id": f"pi_{i}", "verdict": "PASS", "score": 1.0, "latency_ms": 10,
+         "category": "prompt_injection", "difficulty": "medium", "severity": "high",
+         "status": "ok", "judge_used": "heuristic"}
+        for i in range(5)
+    ]
+    checkpoint = {"test-model": all_ckpt_results}
+    # Only request 2 of those 5 cases
+    cases_subset = [{"id": "pi_0", "category": "prompt_injection", "difficulty": "medium",
+                     "severity": "high", "prompt": "p0"},
+                    {"id": "pi_2", "category": "prompt_injection", "difficulty": "medium",
+                     "severity": "high", "prompt": "p2"}]
+
+    with patch.object(harness, "ollama_generate", new_callable=AsyncMock) as mock_gen:
+        results = await harness.run_model_benchmark("test-model", cases_subset, checkpoint, verbose=False)
+
+    mock_gen.assert_not_called()
+    assert len(results) == 2
+    assert {r["case_id"] for r in results} == {"pi_0", "pi_2"}
+
+
+def test_load_benchmark_cases_label_in_leaderboard(tmp_path, monkeypatch):
+    """write_leaderboard emits the label string when run_meta has one."""
+    monkeypatch.setattr(harness, "LEADERBOARD_MD", tmp_path / "lb.md")
+    meta = harness.build_run_meta(
+        "llm-judge:qwen3:8b", None, 800, "2026-06-17", {},
+        label="benchmark-lite,3-categories,20/category",
+        categories=["jailbreak", "prompt_injection", "hallucination"],
+        per_category_n=20,
+    )
+    metrics = [{"model": "qwen3:8b", "overall_score": 90.0, "total_cases": 60,
+                "fail_count": 6, "avg_latency_ms": 500, "heuristic_fallback_count": 0}]
+    harness.write_leaderboard(metrics, meta)
+    text = (tmp_path / "lb.md").read_text()
+    assert "benchmark-lite" in text
+
+
+def test_write_summary_per_category_note(tmp_path, monkeypatch):
+    """write_summary shows per-category size when per_category_n + categories set."""
+    monkeypatch.setattr(harness, "SUMMARY_MD", tmp_path / "s.md")
+    meta = harness.build_run_meta(
+        "llm-judge:qwen3:8b", None, 800, "2026-06-17", {},
+        label="benchmark-lite,3-categories,20/category",
+        categories=["jailbreak", "prompt_injection", "hallucination"],
+        per_category_n=20,
+    )
+    meta["self_judge_disclosure"] = "qwen3:8b is both tested and judge."
+    metrics = [{"model": "qwen3:8b", "overall_score": 90.0, "total_cases": 60,
+                "fail_count": 6, "avg_latency_ms": 500, "heuristic_fallback_count": 0,
+                "prompt_injection_rate": 0.1, "jailbreak_rate": 0.2, "hallucination_rate": 0.05}]
+    harness.write_summary(metrics, skipped_models=[], run_meta=meta)
+    text = (tmp_path / "s.md").read_text()
+    assert "20" in text and "3 categories" in text
+    assert "Self-judge" in text or "self_judge" in text.lower() or "qwen3:8b is both" in text
+
+
+# ---------------------------------------------------------------------------
 # build_run_meta / _meta_header
 # ---------------------------------------------------------------------------
 
@@ -341,4 +459,4 @@ def test_write_comparison_report_shows_evaluator(tmp_path, monkeypatch):
     harness.write_comparison_report(metrics, FAKE_RUN_META)
     text = (tmp_path / "c.md").read_text()
     assert "llm-judge" in text
-    assert "Heuristic Fallbacks" in text
+    assert "Fallbacks" in text

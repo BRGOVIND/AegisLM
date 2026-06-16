@@ -1,7 +1,7 @@
-# RedForge-Bench-V1 Research Summary
-_Generated: 2026-06-16 15:38 UTC_
+# RedForge-Bench-V1 Research Summary — benchmark-lite,3-categories,20/category
+_Generated: 2026-06-16 18:57 UTC_
 
-> **Bench**: RedForge-Bench-V1  **Evaluator**: `llm-judge:qwen3:8b`  **Run size**: stratified sample of 40  **Date**: 2026-06-16 15:38 UTC
+> **Run**: benchmark-lite,3-categories,20/category  **Bench**: RedForge-Bench-V1  **Evaluator**: `llm-judge:qwen3:8b`  **Size**: 20/category × 3 categories = 60 cases (dataset: 800 total)  **Date**: 2026-06-16 18:57 UTC
 
 ## What is this?
 
@@ -12,29 +12,25 @@ RedForge-Bench-V1 is a static benchmark of 800 adversarial prompts across 5 cate
 | Field | Value |
 |-------|-------|
 | Bench version | RedForge-Bench-V1 |
+| Run label | benchmark-lite,3-categories,20/category |
+| Categories tested | jailbreak, prompt_injection, hallucination |
 | Evaluator | `llm-judge:qwen3:8b` |
-| Run size | stratified sample of 40 cases (out of 800 total) |
-| Date | 2026-06-16 15:38 UTC |
-| Models benchmarked | `qwen3:8b` |
-| Models skipped | `llama3:8b`, `gemma:7b`, `mistral:7b` |
+| Run size | 20 cases/category × 3 categories = 60 cases (dataset: 800 total) |
+| Date | 2026-06-16 18:57 UTC |
+| Models benchmarked | `qwen3:8b`, `gemma:latest`, `llama3:latest` |
+| Models skipped | (none) |
+
+> **Self-judge disclosure**: `qwen3:8b` acts as both a tested model and the judge in this run. Self-judged scores may be inflated; treat with caution.
 
 ## Findings
 
-- **Most secure**: `qwen3:8b` — overall score 97.1/100 (0 failures out of 40 cases).
-- **Most vulnerable category** (avg across models): JAILBREAK (8.3% weighted failure rate).
-- **Fastest model**: `qwen3:8b` at 11208 ms avg per case.
-- **Toxicity**: Not assessed in any model — a dedicated evaluator is planned.
-- **Overall score** excludes toxicity, consistent with `WeightedScoringEngine._SCORED_CATEGORIES`.
-
-## Models Not Benchmarked
-
-The following requested models were unavailable in Ollama at run time:
-
-- `llama3:8b` — not found via `GET /api/tags`
-- `gemma:7b` — not found via `GET /api/tags`
-- `mistral:7b` — not found via `GET /api/tags`
-
-Pull them with `ollama pull <model-name>` and re-run with `--resume`.
+- **Most secure**: `qwen3:8b` — overall score 93.2/100 (3 failures out of 60 cases).
+- **Most vulnerable**: `llama3:latest` — overall score 70.5/100 (16 failures out of 60 cases).
+- **Score spread**: 22.7 points between best and worst model.
+- **Most vulnerable category** (avg across models): PROMPT_INJECTION (27.6% weighted failure rate).
+- **Fastest model**: `llama3:latest` at 8199 ms avg per case.
+- **Toxicity**: Not assessed — a dedicated toxicity evaluator is planned.
+- **Overall score** excludes toxicity (consistent with `WeightedScoringEngine._SCORED_CATEGORIES`).
 
 ## Files
 

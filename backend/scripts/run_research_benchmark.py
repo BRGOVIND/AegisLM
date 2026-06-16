@@ -208,7 +208,9 @@ async def run_model_benchmark(
         for r in checkpoint.get(model, [])
     }
 
-    results: list[dict] = list(already_done.values())
+    requested_ids = {c["id"] for c in cases}
+    # Only return results for cases in the current run's case list (not the full checkpoint)
+    results: list[dict] = [r for cid, r in already_done.items() if cid in requested_ids]
     pending = [c for c in cases if c["id"] not in already_done]
 
     if not pending:
@@ -271,7 +273,7 @@ CATEGORY_MAP = {
     "toxicity": "TOXICITY",
 }
 
-SCORED_CATEGORIES = {"PROMPT_INJECTION", "JAILBREAK", "CONTEXT_MANIPULATION", "DATA_LEAKAGE"}
+SCORED_CATEGORIES = {"PROMPT_INJECTION", "JAILBREAK", "CONTEXT_MANIPULATION", "DATA_LEAKAGE", "HALLUCINATION"}
 SEVERITY_WEIGHT = {"critical": 4.0, "high": 3.0, "medium": 2.0, "low": 1.0}
 
 
@@ -345,11 +347,17 @@ def build_run_meta(
     total_loaded: int,
     date_str: str,
     heuristic_fallbacks_by_model: dict[str, int],
+    label: str = "",
+    categories: Optional[list[str]] = None,
+    per_category_n: Optional[int] = None,
 ) -> dict:
     return {
         "bench_version": BENCH_VERSION,
+        "label": label,
         "evaluator": evaluator_label,
         "sample_size": sample_size,
+        "per_category_n": per_category_n,
+        "categories": categories,
         "total_cases_loaded": total_loaded,
         "date": date_str,
         "heuristic_fallback_by_model": heuristic_fallbacks_by_model,
@@ -357,18 +365,33 @@ def build_run_meta(
 
 
 def _meta_header(run_meta: Optional[dict]) -> list[str]:
-    """Returns 3–4 lines summarising the run for MD file headers."""
+    """Returns 2 lines summarising the run for MD file headers."""
     if not run_meta:
         return ["> **Evaluator**: not recorded (legacy run)", ""]
     fb = run_meta.get("heuristic_fallback_by_model", {})
     fb_total = sum(fb.values())
     fb_note = f" ({fb_total} heuristic fallbacks)" if fb_total else ""
+
+    pcn = run_meta.get("per_category_n")
+    cats = run_meta.get("categories")
     sample = run_meta.get("sample_size")
-    size_note = f"stratified sample of {sample}" if sample else f"full dataset ({run_meta.get('total_cases_loaded', '?')} cases)"
+    total = run_meta.get("total_cases_loaded", "?")
+
+    if pcn and cats:
+        size_note = f"{pcn}/category × {len(cats)} categories = {pcn * len(cats)} cases (dataset: {total} total)"
+    elif sample:
+        size_note = f"stratified sample of {sample} (dataset: {total} total)"
+    else:
+        size_note = f"{total} cases (full dataset)"
+
+    label = run_meta.get("label", "")
+    label_part = f"**Run**: {label}  " if label else ""
+
     return [
-        f"> **Bench**: {run_meta.get('bench_version', BENCH_VERSION)}  "
+        f"> {label_part}"
+        f"**Bench**: {run_meta.get('bench_version', BENCH_VERSION)}  "
         f"**Evaluator**: `{run_meta.get('evaluator', 'unknown')}`{fb_note}  "
-        f"**Run size**: {size_note}  "
+        f"**Size**: {size_note}  "
         f"**Date**: {run_meta.get('date', '?')}",
         "",
     ]
@@ -410,49 +433,60 @@ def write_comparison_report(
     run_meta: Optional[dict] = None,
 ) -> None:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    label = run_meta.get("label", "") if run_meta else ""
+    title = f"# RedForge Model Comparison Report — {label}" if label else "# RedForge Model Comparison Report"
+    cats = run_meta.get("categories") if run_meta else None
+
+    # Build column list based on which categories are in this run
+    ALL_CAT_COLS = [
+        ("prompt_injection", "prompt_injection_rate", "Injection Rate"),
+        ("jailbreak", "jailbreak_rate", "Jailbreak Rate"),
+        ("hallucination", "hallucination_rate", "Hallucination Rate"),
+        ("data_leakage", "data_leakage_rate", "Data Leakage Rate"),
+    ]
+    active_cols = [
+        (slug, field, hdr)
+        for slug, field, hdr in ALL_CAT_COLS
+        if cats is None or slug in cats
+    ]
+
+    col_headers = " | ".join(h for _, _, h in active_cols)
+    col_sep = " | ".join("---" for _ in active_cols)
+    header_row = f"| Model | Overall Score | {col_headers} | Avg Latency ms | Fallbacks |"
+    sep_row = f"|-------|-------------|{col_sep}|--------------|-----------|"
+
     lines = [
-        "# RedForge Model Comparison Report",
+        title,
         f"_Generated: {now}_",
         "",
         *_meta_header(run_meta),
         "## Summary",
         "",
-        "| Model | Overall Score | Injection Rate | Jailbreak Rate | Data Leakage Rate | Avg Latency ms | Heuristic Fallbacks | Toxicity |",
-        "|-------|-------------|--------------|--------------|-----------------|--------------|---------------------|---------|",
+        header_row,
+        sep_row,
     ]
     for m in sorted(metrics, key=lambda x: x["overall_score"], reverse=True):
-        tox = "not assessed" if not m.get("toxicity_assessed") else f"{m.get('toxicity_rate', 0):.1%}"
         fb = m.get("heuristic_fallback_count", 0)
-        fb_cell = str(fb) if fb else "0"
+        cat_cells = " | ".join(f"{m.get(field, 0.0):.1%}" for _, field, _ in active_cols)
         lines.append(
             f"| {m['model']} "
             f"| {m['overall_score']:.1f} "
-            f"| {m.get('prompt_injection_rate', 0.0):.1%} "
-            f"| {m.get('jailbreak_rate', 0.0):.1%} "
-            f"| {m.get('data_leakage_rate', 0.0):.1%} "
+            f"| {cat_cells} "
             f"| {m['avg_latency_ms']:.0f} ms "
-            f"| {fb_cell} "
-            f"| {tox} |"
+            f"| {fb} |"
         )
 
-    lines += [
+    notes = [
         "",
         "## Notes",
         "",
-        "- **Toxicity** is marked _not assessed_ — a dedicated toxicity evaluator is planned for RedForge v2.1.",
-        "- **Overall score** uses only PROMPT_INJECTION, JAILBREAK, CONTEXT_MANIPULATION, DATA_LEAKAGE categories.",
-        "- **Heuristic fallbacks**: cases where the LLM judge was unavailable/unparseable and fell back to keyword scoring.",
-        "",
-        "## Category Definitions",
-        "",
-        "| Category | Weight logic |",
-        "|----------|-------------|",
-        "| PROMPT_INJECTION | Does model follow injected instruction? |",
-        "| JAILBREAK | Does model break character restrictions? |",
-        "| CONTEXT_MANIPULATION | Does model get confused by context? |",
-        "| DATA_LEAKAGE | Does model expose private data patterns? |",
-        "| TOXICITY | _Not scored (future evaluator)_ |",
+        "- **Overall score** uses only scored categories (PROMPT_INJECTION, JAILBREAK, HALLUCINATION, DATA_LEAKAGE). Toxicity excluded until a dedicated evaluator is available.",
+        "- **Fallbacks**: cases where the LLM judge returned an unparseable response and fell back to keyword heuristic.",
     ]
+    if run_meta and run_meta.get("self_judge_disclosure"):
+        notes.append(f"- **Self-judge disclosure**: {run_meta['self_judge_disclosure']}")
+
+    lines += notes
     COMPARISON_MD.write_text("\n".join(lines), encoding="utf-8")
     print(f"  Wrote {COMPARISON_MD}")
 
@@ -463,8 +497,10 @@ def write_leaderboard(
 ) -> None:
     ranked = sorted(metrics, key=lambda x: x["overall_score"], reverse=True)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    label = run_meta.get("label", "") if run_meta else ""
+    title = f"# RedForge Security Leaderboard — {label}" if label else "# RedForge Security Leaderboard"
     lines = [
-        "# RedForge Security Leaderboard",
+        title,
         f"_Generated: {now}_",
         "",
         *_meta_header(run_meta),
@@ -493,41 +529,60 @@ def write_summary(
     worst = ranked[-1] if len(ranked) > 1 else None
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    label = run_meta.get("label", "") if run_meta else ""
+    pcn = run_meta.get("per_category_n") if run_meta else None
+    cats = run_meta.get("categories") if run_meta else None
     sample = run_meta.get("sample_size") if run_meta else None
     total_loaded = run_meta.get("total_cases_loaded", "?") if run_meta else "?"
     evaluator = run_meta.get("evaluator", "unknown") if run_meta else "unknown"
     date_str = run_meta.get("date", now) if run_meta else now
+    self_judge = run_meta.get("self_judge_disclosure", "") if run_meta else ""
 
-    size_note = (
-        f"stratified sample of {sample} cases (out of {total_loaded} total)"
-        if sample else f"{total_loaded} cases (full dataset)"
-    )
+    if pcn and cats:
+        size_note = f"{pcn} cases/category × {len(cats)} categories = {pcn * len(cats)} cases (dataset: {total_loaded} total)"
+        cats_note = ", ".join(cats)
+    elif sample:
+        size_note = f"stratified sample of {sample} cases (dataset: {total_loaded} total)"
+        cats_note = "all 5 categories"
+    else:
+        size_note = f"{total_loaded} cases (full dataset)"
+        cats_note = "all 5 categories"
+
+    title = f"# RedForge-Bench-V1 Research Summary — {label}" if label else "# RedForge-Bench-V1 Research Summary"
 
     lines = [
-        "# RedForge-Bench-V1 Research Summary",
+        title,
         f"_Generated: {now}_",
         "",
         *_meta_header(run_meta),
         "## What is this?",
         "",
-        f"RedForge-Bench-V1 is a static benchmark of 800 adversarial prompts across 5 categories "
+        "RedForge-Bench-V1 is a static benchmark of 800 adversarial prompts across 5 categories "
         "(PROMPT_INJECTION, JAILBREAK, DATA_LEAKAGE, HALLUCINATION, TOXICITY). "
         "Each case has a ground truth verdict and was validated by the RedForge dataset validator.",
         "",
         "## Run Details",
         "",
-        f"| Field | Value |",
-        f"|-------|-------|",
+        "| Field | Value |",
+        "|-------|-------|",
         f"| Bench version | {BENCH_VERSION} |",
+        f"| Run label | {label or '(unlabeled)'} |",
+        f"| Categories tested | {cats_note} |",
         f"| Evaluator | `{evaluator}` |",
         f"| Run size | {size_note} |",
         f"| Date | {date_str} |",
         "| Models benchmarked | " + (', '.join(f"`{m['model']}`" for m in ranked) or '(none)') + " |",
         "| Models skipped | " + (', '.join(f"`{s}`" for s in skipped_models) if skipped_models else '(none)') + " |",
         "",
-        "## Findings",
-        "",
     ]
+
+    if self_judge:
+        lines += [
+            f"> **Self-judge disclosure**: {self_judge}",
+            "",
+        ]
+
+    lines += ["## Findings", ""]
 
     if not ranked:
         lines.append("_No models were benchmarked in this run._")
@@ -544,20 +599,20 @@ def write_summary(
             )
         if len(ranked) > 1:
             diff = ranked[0]["overall_score"] - ranked[-1]["overall_score"]
-            lines.append(f"- **Score spread**: {diff:.1f} points between best and worst.")
+            lines.append(f"- **Score spread**: {diff:.1f} points between best and worst model.")
 
-        # Most vulnerable category (highest fail rate across all models)
+        # Most vulnerable category across the run
         cat_fields = [
             ("prompt_injection_rate", "PROMPT_INJECTION"),
             ("jailbreak_rate", "JAILBREAK"),
             ("data_leakage_rate", "DATA_LEAKAGE"),
             ("hallucination_rate", "HALLUCINATION"),
         ]
-        avg_rates = {}
-        for field, label in cat_fields:
+        avg_rates: dict[str, float] = {}
+        for field, cat_label in cat_fields:
             vals = [m.get(field, 0.0) for m in ranked if field in m]
             if vals:
-                avg_rates[label] = sum(vals) / len(vals)
+                avg_rates[cat_label] = sum(vals) / len(vals)
         if avg_rates:
             most_vuln = max(avg_rates, key=avg_rates.__getitem__)
             lines.append(
@@ -565,27 +620,24 @@ def write_summary(
                 f"({avg_rates[most_vuln]:.1%} weighted failure rate)."
             )
 
-        # Fastest model
-        fastest = min(ranked, key=lambda m: m["avg_latency_ms"])
-        lines.append(
-            f"- **Fastest model**: `{fastest['model']}` at {fastest['avg_latency_ms']:.0f} ms avg per case."
-        )
+        if ranked:
+            fastest = min(ranked, key=lambda m: m["avg_latency_ms"])
+            lines.append(
+                f"- **Fastest model**: `{fastest['model']}` at {fastest['avg_latency_ms']:.0f} ms avg per case."
+            )
 
         lines += [
-            "- **Toxicity**: Not assessed in any model — a dedicated evaluator is planned.",
-            "- **Overall score** excludes toxicity, consistent with `WeightedScoringEngine._SCORED_CATEGORIES`.",
+            "- **Toxicity**: Not assessed — a dedicated toxicity evaluator is planned.",
+            "- **Overall score** excludes toxicity (consistent with `WeightedScoringEngine._SCORED_CATEGORIES`).",
         ]
 
     # Heuristic fallback warning
-    fb_total = 0
-    if run_meta:
-        fb_total = sum(run_meta.get("heuristic_fallback_by_model", {}).values())
+    fb_total = sum(run_meta.get("heuristic_fallback_by_model", {}).values()) if run_meta else 0
     if fb_total:
         lines += [
             "",
-            f"> **Warning**: {fb_total} case(s) across all models fell back to heuristic scoring because "
-            "the LLM judge returned an unparseable response. These cases are scored by keyword matching, "
-            "not by the judge model. See `heuristic_fallback_count` per model in the comparison table.",
+            f"> **Warning**: {fb_total} case(s) fell back to heuristic scoring because "
+            "the LLM judge returned an unparseable response. See `heuristic_fallback_count` per model in the comparison table.",
         ]
 
     lines += [""]
@@ -594,16 +646,10 @@ def write_summary(
         lines += [
             "## Models Not Benchmarked",
             "",
-            "The following requested models were unavailable in Ollama at run time:",
-            "",
         ]
         for m in skipped_models:
             lines.append(f"- `{m}` — not found via `GET /api/tags`")
-        lines += [
-            "",
-            "Pull them with `ollama pull <model-name>` and re-run with `--resume`.",
-            "",
-        ]
+        lines += ["", "Pull with `ollama pull <model-name>` and re-run with `--resume`.", ""]
 
     lines += [
         "## Files",
@@ -624,16 +670,32 @@ def write_summary(
 # Load benchmark cases
 # ---------------------------------------------------------------------------
 
-def load_benchmark_cases(sample: Optional[int]) -> list[dict]:
-    """Load cases from RedForge-Bench-V1 JSON files directly."""
+def load_benchmark_cases(
+    sample: Optional[int],
+    categories: Optional[list[str]] = None,
+    per_category: Optional[int] = None,
+) -> list[dict]:
+    """Load cases from RedForge-Bench-V1 JSON files directly.
+
+    categories: if given, only load these categories (deterministic order)
+    per_category: if given, take exactly this many cases per category (same IDs every run)
+    sample: legacy stratified-sample fallback when per_category is not used
+    """
     dataset_dir = REPO_ROOT / "datasets" / "redforge-bench-v1"
-    category_files = {
+    all_category_files = {
         "prompt_injection": "prompt_injection.json",
         "jailbreak": "jailbreak.json",
         "data_leakage": "data_leakage.json",
         "hallucination": "hallucination.json",
         "toxicity": "toxicity.json",
     }
+
+    # Filter to requested categories (preserving file-order determinism)
+    if categories:
+        category_files = {k: v for k, v in all_category_files.items() if k in categories}
+    else:
+        category_files = all_category_files
+
     all_cases: list[dict] = []
     for cat, fname in category_files.items():
         fpath = dataset_dir / fname
@@ -644,7 +706,14 @@ def load_benchmark_cases(sample: Optional[int]) -> list[dict]:
             entries = json.load(f)
         for e in entries:
             e.setdefault("category", cat)
+        # per_category: slice deterministically (same IDs on every run)
+        if per_category is not None:
+            entries = entries[:per_category]
         all_cases.extend(entries)
+
+    if per_category is not None:
+        # Already sliced per category above; just return
+        return all_cases
 
     if sample is not None:
         per_cat: dict[str, list[dict]] = {}
@@ -652,11 +721,11 @@ def load_benchmark_cases(sample: Optional[int]) -> list[dict]:
             per_cat.setdefault(c["category"], []).append(c)
 
         sampled: list[dict] = []
-        cats = list(per_cat.keys())
-        per = max(1, sample // len(cats))
-        remainder = sample - per * len(cats)
+        cat_keys = list(per_cat.keys())
+        per = max(1, sample // len(cat_keys))
+        remainder = sample - per * len(cat_keys)
 
-        for i, cat in enumerate(cats):
+        for i, cat in enumerate(cat_keys):
             n = per + (1 if i < remainder else 0)
             sampled.extend(per_cat[cat][:n])
 
@@ -673,6 +742,12 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="RedForge Research Benchmark Harness v2")
     parser.add_argument("--models", nargs="+", required=True, help="Ollama model tags to benchmark")
     parser.add_argument("--sample", type=int, default=None, help="Run only N cases (stratified by category)")
+    parser.add_argument("--categories", nargs="+", default=None,
+                        help="Categories to test (e.g. jailbreak prompt_injection hallucination)")
+    parser.add_argument("--per-category", type=int, default=None,
+                        help="Exact number of cases per category (same IDs for all models)")
+    parser.add_argument("--label", type=str, default="",
+                        help="Run label printed in all report headers (e.g. 'benchmark-lite,3-categories,20/category')")
     parser.add_argument("--judge", type=str, default=None, help="Ollama model to use as LLM judge (default: heuristic)")
     parser.add_argument("--resume", action="store_true", help="Resume from checkpoint")
     parser.add_argument("--no-checkpoint", action="store_true", help="Ignore and overwrite any checkpoint")
@@ -687,14 +762,30 @@ async def main() -> None:
     print(f"Bench version : {BENCH_VERSION}")
     print(f"Models        : {args.models}")
     print(f"Evaluator     : {evaluator_label}")
-    print(f"Sample        : {args.sample if args.sample else 'full dataset'}")
+    if args.label:
+        print(f"Label         : {args.label}")
+    if args.categories:
+        print(f"Categories    : {args.categories}")
+    if args.per_category:
+        print(f"Per category  : {args.per_category}")
+    elif args.sample:
+        print(f"Sample        : {args.sample}")
+    else:
+        print(f"Sample        : full dataset")
     print()
 
-    # Load cases — track full dataset size separately from the sample
+    # Load cases — always track full dataset size for reporting
     print("Loading benchmark cases...")
     all_cases_unsampled = load_benchmark_cases(None)
     total_in_dataset = len(all_cases_unsampled)
-    cases = load_benchmark_cases(args.sample) if args.sample else all_cases_unsampled
+
+    if args.per_category is not None:
+        cases = load_benchmark_cases(None, categories=args.categories, per_category=args.per_category)
+    elif args.sample is not None:
+        cases = load_benchmark_cases(args.sample, categories=args.categories)
+    else:
+        cases = load_benchmark_cases(None, categories=args.categories)
+
     print(f"  {len(cases)} cases loaded (dataset total: {total_in_dataset}).")
     print()
 
@@ -747,6 +838,16 @@ async def main() -> None:
     # Compute metrics
     metrics = [compute_model_metrics(model, results) for model, results in all_results.items()]
 
+    # Self-judge disclosure
+    self_judge_disclosure = ""
+    if args.judge:
+        judge_tested = [m for m in available_models if m == args.judge]
+        if judge_tested:
+            self_judge_disclosure = (
+                f"`{args.judge}` acts as both a tested model and the judge in this run. "
+                "Self-judged scores may be inflated; treat with caution."
+            )
+
     # Build run metadata
     fb_by_model = {
         model: sum(1 for r in results if r.get("judge_used") == "heuristic" and r.get("fallback", False))
@@ -758,7 +859,12 @@ async def main() -> None:
         total_loaded=total_in_dataset,
         date_str=now_str,
         heuristic_fallbacks_by_model=fb_by_model,
+        label=args.label,
+        categories=args.categories,
+        per_category_n=args.per_category,
     )
+    if self_judge_disclosure:
+        run_meta["self_judge_disclosure"] = self_judge_disclosure
 
     # Write outputs
     print("Writing reports...")
