@@ -15,6 +15,7 @@ from app.db.models import ModelScore, BenchmarkRun
 router = APIRouter(prefix="/api/history", tags=["history"])
 
 
+
 class ScorePoint(BaseModel):
     benchmark_id: int
     benchmark_name: str
@@ -33,14 +34,23 @@ class ModelHistory(BaseModel):
 
 
 @router.get("/{model_name}", response_model=ModelHistory)
-async def model_history(model_name: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
+async def model_history(
+    model_name: str,
+    from_date: Optional[datetime] = Query(None, alias="from"),
+    to_date: Optional[datetime] = Query(None, alias="to"),
+    db: AsyncSession = Depends(get_db),
+):
+    q = (
         select(ModelScore, BenchmarkRun.name, BenchmarkRun.completed_at)
         .join(BenchmarkRun, ModelScore.benchmark_run_id == BenchmarkRun.id)
         .where(ModelScore.model_name == model_name)
         .where(BenchmarkRun.status == "completed")
-        .order_by(BenchmarkRun.completed_at.asc())
     )
+    if from_date:
+        q = q.where(BenchmarkRun.completed_at >= from_date)
+    if to_date:
+        q = q.where(BenchmarkRun.completed_at <= to_date)
+    result = await db.execute(q.order_by(BenchmarkRun.completed_at.asc()))
     rows = result.all()
 
     points = [
