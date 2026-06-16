@@ -1,38 +1,43 @@
 # RedForge
 
-> Open-source red teaming platform for local LLMs powered by Ollama
+A local red teaming tool for testing LLMs that run through Ollama. Point it at a model, throw a library of adversarial prompts at it, and see where it breaks.
 
-## What is RedForge?
+Everything runs on your own machine. Nothing gets sent to a cloud API.
 
-RedForge is a local-first security evaluation platform that stress-tests LLMs running via Ollama against a curated library of adversarial prompts. It automatically scores each model response, classifies vulnerabilities by attack category, and surfaces per-model risk metrics through a React dashboard. Everything runs on your machine — no data leaves your environment.
+## Why I built this
 
-## Features
+Most LLM security testing either costs money (hosted eval platforms) or means writing attack prompts by hand every time. RedForge keeps a library of attacks ready to go, runs them against whatever Ollama models you have pulled, scores the responses, and shows you which categories the model is weak against.
 
-- **28 built-in attacks** spanning prompt injection, jailbreaks, context manipulation, and data leakage
-- **Automated scoring** with PASS / FAIL / UNCERTAIN verdicts and human-readable reasoning per response
-- **Batch testing** — run an entire attack category against a model in one click, with async job tracking
-- **Per-model dashboard** with pass/fail rates, category breakdown charts, average latency, and 7-day test history
-- **Hallucination evaluation** endpoint for probing factual reliability
-- **PDF/JSON report generation** for sharing results or audit trails
-- **Zero cloud dependency** — all inference goes directly to your local Ollama instance
-- **FastAPI backend + React/TypeScript frontend** with hot-reload for easy extension
+## What it does
 
-## Prerequisites
+- Ships with 28 attacks across four categories: prompt injection, jailbreaks, context manipulation, and data leakage
+- Scores each response as PASS, FAIL, or UNCERTAIN, with a short reason for the verdict
+- Runs a whole category against a model in one go, tracked as a background job
+- Shows pass/fail rates, a category breakdown, average latency, and a 7-day history per model
+- Has a separate endpoint for checking hallucination / factual reliability
+- Exports results to PDF or JSON if you need to share them
+- Talks straight to your local Ollama instance, so no inference leaves your machine
 
-- Python 3.11+
-- Node.js 18+
-- Ollama installed and running — [https://ollama.ai](https://ollama.ai)
-- At least one Ollama model pulled (e.g. `llama3`, `mistral`, `gemma`)
+The backend is FastAPI, the frontend is React + TypeScript. Both hot-reload, so it's easy to add your own attacks or metrics.
 
-## Quick Start
+## Before you start
 
-### 1. Pull an Ollama model
+You'll need:
+
+- Python 3.11 or newer
+- Node 18 or newer
+- Ollama, installed and running ([ollama.com](https://ollama.com))
+- At least one model pulled, e.g. `ollama pull llama3`
+
+## Running it
+
+Pull a model if you haven't:
 
 ```bash
 ollama pull llama3
 ```
 
-### 2. Start the backend
+Start the backend:
 
 ```bash
 cd backend
@@ -40,9 +45,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`. The database is created automatically on first run and the attack library is seeded.
+It runs on `http://localhost:8000`. The database gets created and the attack library seeded automatically the first time it starts.
 
-### 3. Start the frontend
+Then the frontend, in a second terminal:
 
 ```bash
 cd frontend
@@ -50,50 +55,46 @@ npm install
 npm run dev
 ```
 
-### 4. Open RedForge
+Open `http://localhost:5173`, pick a model, run an attack or a full batch, and check the results on the dashboard.
 
-Navigate to [http://localhost:5173](http://localhost:5173)
+## The attack library
 
-Select a model, pick an attack or run a full batch, and review the scored results on the dashboard.
-
-## Attack Categories
-
-| Category | Description | Attack Count |
+| Category | What it covers | Count |
 |---|---|---|
-| `PROMPT_INJECTION` | Attempts to override system instructions, inject fake directives, or exfiltrate the system prompt via crafted user input | 8 |
-| `JAILBREAK` | Persona games, fictional framings, emotional manipulation, and academic covers used to bypass safety alignment | 7 |
-| `CONTEXT_MANIPULATION` | Fabricated conversation history, false prior agreements, and invented authority claims to exploit context trust | 6 |
-| `DATA_LEAKAGE` | Probes that attempt to extract the system prompt, context window contents, session data, or memorized training information | 7 |
+| `PROMPT_INJECTION` | Overriding system instructions, injecting fake directives, pulling out the system prompt | 8 |
+| `JAILBREAK` | Persona tricks, fictional framing, emotional pressure, fake academic justifications | 7 |
+| `CONTEXT_MANIPULATION` | Made-up chat history, false prior agreements, invented authority | 6 |
+| `DATA_LEAKAGE` | Trying to extract the system prompt, context contents, session data, or memorized training data | 7 |
 
-## API Reference
+## API
 
-| Method | Endpoint | Description |
+| Method | Endpoint | What it does |
 |---|---|---|
-| `GET` | `/api/attacks` | List all attacks grouped by category |
-| `GET` | `/api/attacks/{id}` | Get a single attack by ID |
-| `POST` | `/api/runs` | Run a single attack against a model |
-| `POST` | `/api/runs/batch` | Run all attacks (optionally filtered by category) as a background job |
-| `GET` | `/api/runs/{job_id}/status` | Poll batch job progress and results |
-| `GET` | `/api/runs` | List all past runs for a given model |
-| `GET` | `/api/dashboard` | Aggregated risk metrics for a model |
-| `GET` | `/api/models` | List models currently available in Ollama |
-| `POST` | `/api/evaluate/hallucination` | Run a hallucination probe against a model |
-| `GET` | `/api/reports/{model}` | Generate a downloadable security report |
+| `GET` | `/api/attacks` | All attacks, grouped by category |
+| `GET` | `/api/attacks/{id}` | A single attack |
+| `POST` | `/api/runs` | Run one attack against a model |
+| `POST` | `/api/runs/batch` | Run a batch (optionally one category) as a background job |
+| `GET` | `/api/runs/{job_id}/status` | Check batch progress and results |
+| `GET` | `/api/runs` | Past runs for a model |
+| `GET` | `/api/dashboard` | Aggregated metrics for a model |
+| `GET` | `/api/models` | Models currently available in Ollama |
+| `POST` | `/api/evaluate/hallucination` | Run a hallucination probe |
+| `GET` | `/api/reports/{model}` | Generate a downloadable report |
 
-Full interactive docs are available at `http://localhost:8000/docs` once the backend is running.
+There's interactive API docs at `http://localhost:8000/docs` once the backend is up.
 
-## Architecture
+## Stack
 
-| Layer | Technology |
+| Layer | What's used |
 |---|---|
-| Backend API | FastAPI (Python 3.11+), async via `asyncio` |
-| Database | SQLite with SQLAlchemy 2.0 async + Alembic migrations |
-| LLM inference | Ollama REST API (`http://localhost:11434`) via `httpx` |
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Recharts |
-| Component library | Radix UI primitives |
-| Scoring engine | Heuristic keyword + pattern matching with extensible evaluator modules |
+| API | FastAPI, async |
+| Database | SQLite via SQLAlchemy 2.0 async, Alembic for migrations |
+| Inference | Ollama REST API at `http://localhost:11434`, called with `httpx` |
+| Frontend | React 18, TypeScript, Vite, Tailwind, Recharts |
+| UI components | Radix UI |
+| Scoring | Keyword and pattern matching, with evaluator modules you can extend |
 
-The backend and frontend are fully decoupled — you can call the API directly or swap the frontend for your own tooling.
+The frontend and backend are decoupled, so you can hit the API directly or build your own UI on top of it.
 
 ## License
 
