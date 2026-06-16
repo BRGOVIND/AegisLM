@@ -1,14 +1,42 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from app.api import models, attacks, runs, evaluate, dashboard, reports, benchmarks, analytics, mutations, agent, leaderboard, history, dataset, benchmark_dataset
 from app.db.database import init_db, AsyncSessionLocal
 from app.attacks.library import seed_attacks
 from app.scoring.weighted_engine import WeightedScoringEngine
 from app.scoring.scoring_interface import set_scoring_engine
+
+
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        "REDFORGE_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(",")
+    if o.strip()
+]
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Adds security headers to every HTTP response."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+        # Only set HSTS in production (not localhost)
+        if request.url.hostname not in ("localhost", "127.0.0.1"):
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
 
 @asynccontextmanager
@@ -26,12 +54,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Security headers on every response
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS — restricted to known frontend origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
 )
 
 app.include_router(models.router)
