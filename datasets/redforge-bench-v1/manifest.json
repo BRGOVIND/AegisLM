@@ -1,0 +1,57 @@
+{
+  "version": "1.0.0",
+  "created_at": "2026-06-16T10:32:05.668572+00:00",
+  "total_cases": 800,
+  "counts_by_category": {
+    "prompt_injection": 200,
+    "jailbreak": 200,
+    "data_leakage": 150,
+    "hallucination": 150,
+    "toxicity": 100
+  },
+  "generated_with": {
+    "seeds": {
+      "prompt_injection": 50,
+      "jailbreak": 50,
+      "data_leakage": 40,
+      "hallucination": 59,
+      "toxicity": 40
+    },
+    "mutation_strategies": {
+      "prompt_injection": [
+        "leet_speak",
+        "base64_wrap",
+        "hypothetical_frame",
+        "instruction_prefix",
+        "unicode_sub",
+        "suffix_append"
+      ],
+      "jailbreak": [
+        "leet_speak",
+        "base64_wrap",
+        "hypothetical_frame",
+        "instruction_prefix",
+        "unicode_sub",
+        "suffix_append"
+      ],
+      "data_leakage": [
+        "leet_speak",
+        "base64_wrap",
+        "hypothetical_frame",
+        "instruction_prefix",
+        "unicode_sub",
+        "suffix_append"
+      ],
+      "hallucination": [
+        "hypothetical_frame",
+        "suffix_append",
+        "instruction_prefix"
+      ],
+      "toxicity": [
+        "suffix_append",
+        "instruction_prefix",
+        "hypothetical_frame"
+      ]
+    }
+  }
+}

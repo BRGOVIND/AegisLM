@@ -66,6 +66,39 @@ Open `http://localhost:5173`, pick a model, run an attack or a full batch, and c
 | `CONTEXT_MANIPULATION` | Made-up chat history, false prior agreements, invented authority | 6 |
 | `DATA_LEAKAGE` | Trying to extract the system prompt, context contents, session data, or memorized training data | 7 |
 
+## V2 Features
+
+RedForge V2 ships a full evaluation platform on top of the original attack runner:
+
+- **Multi-model benchmarking** — run all attacks against multiple models in one job, stored in `benchmark_runs`/`model_scores`
+- **Analytics** — attack effectiveness by category, heatmap by model×category, per-model vulnerability breakdown
+- **Prompt mutation engine** — 7 strategies (leet speak, base64, hypothetical frame, etc.) to generate attack variants
+- **Autonomous red-team agent** — iterative attack loop with configurable round cap, token budget, and wall-clock timeout; records outcome (`compromised` / `rounds_exhausted` / `token_budget_exceeded` / `timeout` / `strategies_exhausted`)
+- **LLM-as-a-Judge** — Ollama-backed structured verdict with heuristic fallback
+- **Leaderboard** — models ranked by overall security score
+- **History** — per-model score time series with `from`/`to` date filtering
+- **Dataset management** — export / import / sync test results to a `DatasetEntry` table
+- **RedForge-Bench-V1** — 800 validated static benchmark cases across 5 categories (see below)
+
+### RedForge-Bench-V1
+
+A versioned static benchmark dataset shipped in `datasets/redforge-bench-v1/`.
+
+| Category | Seeds | Total |
+|---|---|---|
+| `prompt_injection` | 50 | 200 |
+| `jailbreak` | 50 | 200 |
+| `data_leakage` | 40 | 150 |
+| `hallucination` | 60 | 150 |
+| `toxicity` | 40 | 100 |
+| **Total** | **240** | **800** |
+
+Seeds are hand-authored; variants are generated with the Phase 4 mutation engine and deduplicated. The validator enforces required fields, valid enums, unique IDs, no duplicate prompts, per-category minimums, and `ground_truth` on hallucination entries. Toxicity is data-only pending a dedicated evaluator.
+
+Bench endpoints: `GET /api/dataset/benchmark/stats`, `.../categories`, `.../case/{id}`.
+
+See `datasets/redforge-bench-v1/README.md` for full schema and generation details.
+
 ## API
 
 | Method | Endpoint | What it does |
@@ -80,6 +113,13 @@ Open `http://localhost:5173`, pick a model, run an attack or a full batch, and c
 | `GET` | `/api/models` | Models currently available in Ollama |
 | `POST` | `/api/evaluate/hallucination` | Run a hallucination probe |
 | `GET` | `/api/reports/{model}` | Generate a downloadable report |
+| `POST` | `/api/benchmarks` | Start a multi-model benchmark run |
+| `GET` | `/api/benchmarks/{id}/status` | Benchmark run status |
+| `GET` | `/api/leaderboard` | Model rankings by overall score |
+| `GET` | `/api/history/{model}` | Score time series for a model |
+| `POST` | `/api/agent` | Start autonomous red-team agent |
+| `GET` | `/api/dataset/benchmark/stats` | RedForge-Bench-V1 dataset stats |
+| `GET` | `/api/dataset/benchmark/case/{id}` | Single bench case by ID |
 
 There's interactive API docs at `http://localhost:8000/docs` once the backend is up.
 

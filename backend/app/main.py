@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import models, attacks, runs, evaluate, dashboard, reports, benchmarks, analytics, mutations, agent, leaderboard, history, dataset
+from app.api import models, attacks, runs, evaluate, dashboard, reports, benchmarks, analytics, mutations, agent, leaderboard, history, dataset, benchmark_dataset
 from app.db.database import init_db, AsyncSessionLocal
 from app.attacks.library import seed_attacks
 from app.scoring.weighted_engine import WeightedScoringEngine
@@ -47,6 +47,7 @@ app.include_router(agent.router)
 app.include_router(leaderboard.router)
 app.include_router(history.router)
 app.include_router(dataset.router)
+app.include_router(benchmark_dataset.router)
 
 
 @app.get("/")
