@@ -136,6 +136,12 @@ There's interactive API docs at `http://localhost:8000/docs` once the backend is
 
 The frontend and backend are decoupled, so you can hit the API directly or build your own UI on top of it.
 
+Development was assisted by Claude Code.
+Project architecture, feature direction, evaluation methodology,
+benchmark execution, testing validation, and repository ownership
+by B R GOVIND.
+
+
 ## License
 
 MIT
