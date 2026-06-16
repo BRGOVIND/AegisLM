@@ -92,8 +92,12 @@ class AgentRun(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     model_name = Column(String(200), nullable=False)
     target_category = Column(String(50), nullable=True)
-    max_rounds = Column(Integer, default=5)
+    max_rounds = Column(Integer, default=8)
+    max_total_tokens = Column(Integer, default=20000)
+    wall_clock_timeout_s = Column(Integer, default=120)
     status = Column(String(30), nullable=False, default="pending")
+    # compromised / rounds_exhausted / token_budget_exceeded / timeout / strategies_exhausted
+    outcome = Column(String(30), nullable=True)
     rounds_completed = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)

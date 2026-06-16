@@ -20,7 +20,9 @@ AGENT_JOBS: dict[int, dict] = {}
 class AgentRunRequest(BaseModel):
     model_name: str
     target_category: str = "PROMPT_INJECTION"
-    max_rounds: int = 5
+    max_rounds: int = 8
+    max_total_tokens: int = 20000
+    wall_clock_timeout_s: float = 120.0
     generator_model: str = "llama3.2"
     judge_model: str = "llama3.2"
 
@@ -43,7 +45,10 @@ class AgentRunOut(BaseModel):
     model_name: str
     target_category: Optional[str]
     max_rounds: int
+    max_total_tokens: int
+    wall_clock_timeout_s: int
     status: str
+    outcome: Optional[str] = None
     rounds_completed: int
     created_at: datetime
     completed_at: Optional[datetime]
@@ -56,6 +61,7 @@ class AgentStatusOut(BaseModel):
     agent_run_id: int
     status: str
     rounds_completed: int
+    outcome: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -69,6 +75,8 @@ async def start_agent_run(
         model_name=req.model_name,
         target_category=req.target_category,
         max_rounds=req.max_rounds,
+        max_total_tokens=req.max_total_tokens,
+        wall_clock_timeout_s=int(req.wall_clock_timeout_s),
         status="pending",
     )
     db.add(run)
@@ -84,6 +92,8 @@ async def start_agent_run(
         req.model_name,
         req.target_category,
         req.max_rounds,
+        req.max_total_tokens,
+        req.wall_clock_timeout_s,
         req.generator_model,
         req.judge_model,
         AsyncSessionLocal,
@@ -94,7 +104,10 @@ async def start_agent_run(
         model_name=run.model_name,
         target_category=run.target_category,
         max_rounds=run.max_rounds,
+        max_total_tokens=run.max_total_tokens,
+        wall_clock_timeout_s=run.wall_clock_timeout_s,
         status=run.status,
+        outcome=None,
         rounds_completed=0,
         created_at=run.created_at,
         completed_at=None,
@@ -112,6 +125,7 @@ async def get_agent_status(agent_run_id: int, db: AsyncSession = Depends(get_db)
         agent_run_id=run.id,
         status=run.status,
         rounds_completed=run.rounds_completed,
+        outcome=run.outcome,
     )
 
 
