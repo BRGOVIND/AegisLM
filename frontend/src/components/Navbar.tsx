@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Shield, Cpu, Zap, Play, Brain, FileText, BarChart2, TrendingUp, Shuffle, Bot, Trophy, Clock, Database } from 'lucide-react';
+import { Shield, Cpu, Zap, Play, Brain, FileText, BarChart2, TrendingUp, Shuffle, Bot, Trophy, Clock, Database, FlaskConical } from 'lucide-react';
 import ThreatPulse from './ThreatPulse';
 
 interface NavItem {
@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { to: '/leaderboard', icon: <Trophy size={18} />, label: 'Leaderboard' },
   { to: '/history', icon: <Clock size={18} />, label: 'History' },
   { to: '/dataset', icon: <Database size={18} />, label: 'Dataset' },
+  { to: '/agent-analytics', icon: <FlaskConical size={18} />, label: 'Agent Analytics' },
   { to: '/reports', icon: <FileText size={18} />, label: 'Reports' },
 ];
 

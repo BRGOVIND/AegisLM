@@ -116,6 +116,9 @@ class AgentFinding(Base):
     verdict = Column(String(20))
     score = Column(Float)
     escalated = Column(Integer, default=0)  # 0/1 — did model resistance trigger escalation?
+    strategy = Column(String(50), nullable=True)         # adaptive agent: which strategy was used
+    failure_reason = Column(Text, nullable=True)         # judge's reason when model resisted
+    escalation_tier = Column(Integer, nullable=True)     # strategy tier (1=simplest, 4=most complex)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     agent_run = relationship("AgentRun", back_populates="findings")

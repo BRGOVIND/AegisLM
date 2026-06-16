@@ -15,6 +15,7 @@ const RedTeamAgent = React.lazy(() => import('./pages/RedTeamAgent'));
 const Leaderboard = React.lazy(() => import('./pages/Leaderboard'));
 const History = React.lazy(() => import('./pages/History'));
 const Dataset = React.lazy(() => import('./pages/Dataset'));
+const AgentAnalytics = React.lazy(() => import('./pages/AgentAnalytics'));
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-full w-full text-gray-400 text-sm">
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/history" element={<History />} />
           <Route path="/dataset" element={<Dataset />} />
+          <Route path="/agent-analytics" element={<AgentAnalytics />} />
         </Routes>
       </Suspense>
     </Layout>

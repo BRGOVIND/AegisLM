@@ -134,3 +134,31 @@ export async function listBenchmarks(): Promise<BenchmarkRun[]> {
   const res = await client.get<BenchmarkRun[]>('/benchmarks');
   return res.data;
 }
+
+// Adaptive Agent Analytics
+import type { StrategySuccessRate, FailureReasonEntry, AvgRoundsData, AgentRun } from '../types';
+
+export async function getStrategySuccessRates(): Promise<StrategySuccessRate[]> {
+  const res = await client.get<StrategySuccessRate[]>('/agent/analytics/strategy-success');
+  return res.data;
+}
+
+export async function getFailureReasons(): Promise<FailureReasonEntry[]> {
+  const res = await client.get<FailureReasonEntry[]>('/agent/analytics/failure-reasons');
+  return res.data;
+}
+
+export async function getAvgRoundsToCompromise(): Promise<AvgRoundsData> {
+  const res = await client.get<AvgRoundsData>('/agent/analytics/avg-rounds-to-compromise');
+  return res.data;
+}
+
+export async function listAgentRuns(): Promise<AgentRun[]> {
+  const res = await client.get<AgentRun[]>('/agent');
+  return res.data;
+}
+
+export async function getAgentRun(id: number): Promise<AgentRun> {
+  const res = await client.get<AgentRun>(`/agent/${id}`);
+  return res.data;
+}

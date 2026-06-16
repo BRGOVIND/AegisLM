@@ -183,3 +183,49 @@ export interface CreateBenchmarkRequest {
   model_list: string[];
   attack_ids?: number[];
 }
+
+// Adaptive Agent Analytics
+
+export interface AgentFinding {
+  id: number;
+  round_number: number;
+  attack_prompt: string;
+  model_response: string | null;
+  verdict: string | null;
+  score: number | null;
+  escalated: number;
+  strategy: string | null;
+  failure_reason: string | null;
+  escalation_tier: number | null;
+  created_at: string;
+}
+
+export interface AgentRun {
+  id: number;
+  model_name: string;
+  target_category: string | null;
+  max_rounds: number;
+  status: string;
+  outcome: string | null;
+  rounds_completed: number;
+  created_at: string;
+  completed_at: string | null;
+  findings: AgentFinding[];
+}
+
+export interface StrategySuccessRate {
+  strategy: string;
+  total_attempts: number;
+  successes: number;
+  success_rate: number;
+}
+
+export interface FailureReasonEntry {
+  failure_reason: string;
+  count: number;
+}
+
+export interface AvgRoundsData {
+  avg_rounds: number | null;
+  sample_size: number;
+}
