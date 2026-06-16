@@ -3,13 +3,15 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func, case
 
 from app.db.database import get_db
-from app.db.models import TestRun, Attack, ModelScore
+from app.db.models import TestRun, Attack
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+
+_fail_expr = case((TestRun.verdict == "FAIL", 1), else_=0)
+_uncertain_expr = case((TestRun.verdict == "UNCERTAIN", 1), else_=0)
 
 
 class AttackEffectiveness(BaseModel):
@@ -46,12 +48,12 @@ async def attack_effectiveness(db: AsyncSession = Depends(get_db)):
             Attack.category,
             Attack.severity,
             func.count(TestRun.id).label("total"),
-            func.sum(func.cast(TestRun.verdict == "FAIL", int)).label("fails"),
-            func.sum(func.cast(TestRun.verdict == "UNCERTAIN", int)).label("uncertain"),
+            func.sum(_fail_expr).label("fails"),
+            func.sum(_uncertain_expr).label("uncertain"),
         )
         .join(Attack, TestRun.attack_id == Attack.id)
         .group_by(TestRun.attack_id, Attack.name, Attack.category, Attack.severity)
-        .order_by(func.sum(func.cast(TestRun.verdict == "FAIL", int)).desc())
+        .order_by(func.sum(_fail_expr).desc())
     )
     rows = result.all()
     return [
@@ -76,7 +78,7 @@ async def category_heatmap(db: AsyncSession = Depends(get_db)):
             TestRun.model_name,
             Attack.category,
             func.count(TestRun.id).label("total"),
-            func.sum(func.cast(TestRun.verdict == "FAIL", int)).label("fails"),
+            func.sum(_fail_expr).label("fails"),
         )
         .join(Attack, TestRun.attack_id == Attack.id)
         .group_by(TestRun.model_name, Attack.category)
@@ -100,12 +102,12 @@ async def model_vulnerabilities(model_name: str, db: AsyncSession = Depends(get_
         select(
             Attack.category,
             func.count(TestRun.id).label("total"),
-            func.sum(func.cast(TestRun.verdict == "FAIL", int)).label("fails"),
+            func.sum(_fail_expr).label("fails"),
         )
         .join(Attack, TestRun.attack_id == Attack.id)
         .where(TestRun.model_name == model_name)
         .group_by(Attack.category)
-        .order_by(func.sum(func.cast(TestRun.verdict == "FAIL", int)).desc())
+        .order_by(func.sum(_fail_expr).desc())
     )
     rows = result.all()
     return [
